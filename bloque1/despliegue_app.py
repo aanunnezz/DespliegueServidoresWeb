@@ -1,60 +1,81 @@
+import os
+import sys
+from subprocess import call
 
-def start(port_param = '9080'):
+def crear(port_param='9080'):
 
-        call(['git', 'clone', 'https://github.com/CDPS-ETSIT/practica_creativa2.git'])
-        call(['sudo', 'apt-get', 'update'])
-        call(['sudo', 'apt-get', 'install', '-y', 'python3-pip'])
-        os.chdir('practica_creativa2/bookinfo/src/productpage')
-        call(['pip3', 'install', '-r', 'requirements.txt'])
+    call(['git', 'clone', 'https://github.com/CDPS-ETSIT/practica_creativa2.git'])
+    call(['sudo', 'apt-get', 'update'])
+    call(['sudo', 'apt-get', 'install', '-y', 'python3-pip'])
+    os.chdir('practica_creativa2/bookinfo/src/productpage')
 
-        os.environ['GROUP_NUMBER'] = '44'
+     # Modifica "requirements.txt" para arreglar conflictos
+    requirements = 'requirements.txt'
+    with open(requirements, 'r') as file:
+        lines = file.readlines()
+    with open(requirements, 'w') as file:
+        for line in lines:
+            if line.startswith('requests=='):
+                file.write('requests\n')
+        else:
+            file.write(line)
 
-        fin = open('productpage_monolith.py', 'r')
-        fout = open('productpage_monolith.py', 'w')
+    call(['pip3', 'install', '-r', 'requirements.txt'])
+    call(['pip', 'install', '--upgrade', 'json2html'])
 
-        for line in fin: 
+    os.environ['GROUP_NUMBER'] = '44'
 
+    # Modificar productpage_monolith.py
+    with open('productpage_monolith.py', 'r') as fin, open('productpage_monolith_temp.py', 'w') as fout:
+        for line in fin:
             if 'flood_factor = 0' in line:
                 fout.write(line)
-                fout.write(os.linesep 'groupNumber = int(os.environ['GROUP_NUMBER'])\n')
-            elif '\'productpage.html\',' in line:
-                fout.write(line)
-                fout.write('\tgroup = groupNumber,' + os.linesep)
+                fout.write(os.linesep + 'groupNumber = 0 if (os.environ.get("GROUP_NUMBER") is None) else int(os.environ.get("GROUP_NUMBER"))' + os.linesep)
             elif 'def front' in line:
                 fout.write(line)
-                fout.write('\tgroup = groupNumber,' + os.linesep)
+                fout.write('    group = groupNumber,' + os.linesep)
+            elif '\'productpage.html\',' in line:
+                fout.write(line)
+                fout.write('    group = group,' + os.linesep)                
             else:
-                fout.write(line)    
+                fout.write(line)
 
-        fin.close()
-        fout.close()
+    os.rename('productpage_monolith_temp.py', 'productpage_monolith.py')
 
-        os.chdir('templates')
-        fin = open('productpage.html', 'r')
-        fout = open('productpage.html', 'w')
-
+    # Modificar templates/productpage.html
+    os.chdir('templates')
+    with open('productpage.html', 'r') as fin, open('productpage_temp.html', 'w') as fout:
         for line in fin:
-            if {% block title %}Simple Bookstore App{% endblock %} in line:
-                fout.write(line.replace('{% block title %}Simple Bookstore App - Grupo: {{ group }}{% endblock %}' + os.linesep))
+            if '{% block title %}Simple Bookstore App{% endblock %}' in line:
+                fout.write(line.replace(
+                    '{% block title %}Simple Bookstore App{% endblock %}',
+                    '{% block title %}Simple Bookstore App - Grupo: {{ group }}{% endblock %}'
+                ))
             else:
-                fout.write(line)    
+                fout.write(line)
 
-        fin.close()
-        fout.close()
-        
+    os.rename('productpage_temp.html', 'productpage.html')
+
+    print("Aplicación creada correctamente.")
+
+
+def start(port='9080'):
+ os.chdir('practica_creativa2/bookinfo/src/productpage')
+ call(['python3', 'productpage_monolith.py', port])
+    
 
 def liberar():
-	call(['rm', '-rf', 'practica_creativa2'])
+    call(['rm', '-rf', 'practica_creativa2'])
 
-
-param = sys.argv
-
-if param[1] == "arrancar":
-        arrancar()
-
-if param[1] == "liberar":
-	liberar()  
-    
-else:
-    print("Comando no reconocido. Usa 'arrancar' o 'liberar'.")
-              
+if __name__ == "__main__":
+    param = sys.argv
+    if len(param) < 2:
+        print("Debes indicar un comando: 'arrancar' o 'liberar'.")
+    elif param[1] == "crear":
+        crear()
+    elif param[1] == "arrancar":
+        start()
+    elif param[1] == "liberar":
+        liberar()
+    else:
+        print("Comando no reconocido. Usa 'arrancar' o 'liberar'.")
